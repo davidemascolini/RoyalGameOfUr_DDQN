@@ -4,13 +4,8 @@ over grids of hyperparameters and plots
   * the Q-value trajectory of a fixed tracked_state (one line per run, one figure
     per algorithm), and
   * the cumulative win ratio (n-step SARSA only), one line per run.
-
-The n-step SARSA implementation lives in "n-step sarsa.py", whose filename has a
-space, so it cannot be imported with a normal `import` statement; we load it via
-importlib instead.
 """
 
-import importlib.util
 from pathlib import Path
 
 import numpy as np
@@ -20,20 +15,7 @@ from tqdm import tqdm
 
 from enviroment import RoyalGameOfUr
 from exp_sarsa import exp_sarsa
-
-
-def _load_module(filename, module_name):
-    """Load a module from a path whose filename may contain spaces."""
-    path = Path(__file__).with_name(filename)
-    spec = importlib.util.spec_from_file_location(module_name, path)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
-
-# n-step SARSA: filename has a space, so import the module dynamically.
-_nstep_mod = _load_module("n-step sarsa.py", "n_step_sarsa_mod")
-n_step_sarsa = _nstep_mod.n_step_sarsa
+from n_step_sarsa import n_step_sarsa
 
 
 NUM_EPISODES = 250_000

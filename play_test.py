@@ -1,7 +1,7 @@
 import time
 
 from enviroment import RoyalGameOfUr
-
+from tqdm import tqdm 
 
 def active_board_positions(positions):
     return [position for position in positions if 1 <= position <= 14]
@@ -14,7 +14,7 @@ def describe_action(env, action):
     return f"move from {action[0]} to {action[1]}"
 
 
-def play_episode(N=2, seed=None, delay=0.5, max_steps=200):
+def play_episode(N=3, seed=None, delay=0.5, max_steps=200):
     env = RoyalGameOfUr(N)
     observation, _ = env.reset(seed=seed)
     terminated = False
@@ -23,8 +23,8 @@ def play_episode(N=2, seed=None, delay=0.5, max_steps=200):
     step_count = 0
     reward = 0
 
-    print(f"Initial observation: {observation.tolist()}")
-    env.render(active_board_positions(env.player1_loc), active_board_positions(env.player2_loc))
+    #print(f"Initial observation: {observation.tolist()}")
+    #env.render(active_board_positions(env.player1_loc), active_board_positions(env.player2_loc))
 
     while not (terminated or truncated) and step_count < max_steps:
         legal_actions = env.get_legal_moves()
@@ -60,7 +60,13 @@ def play_episode(N=2, seed=None, delay=0.5, max_steps=200):
         f"Finished after {step_count} steps. "
         f"winner={winner}, total_reward={total_reward}, truncated={truncated}"
     )
-
+    return winner=="player 1"
 
 if __name__ == "__main__":
-    play_episode(N=2, seed=42)
+    count=0
+    for seed in tqdm(range(10)):
+        if play_episode(N=3, seed=seed):
+            count+=1
+    print(f"partite vinte da p1: {count}")
+        
+

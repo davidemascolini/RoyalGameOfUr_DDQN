@@ -9,7 +9,7 @@ class RoyalGameOfUr(gym.Env):
 
     def __init__(self, N):
         super().__init__()
-        if N <= 0:
+        if N <= 0: 
             raise ValueError("N must be a positive integer")
 
         # Number of pieces per player.
@@ -19,7 +19,7 @@ class RoyalGameOfUr(gym.Env):
         # The raw potential can swing by ~tens of cells over a game, while the
         # terminal win reward is +/-1; scaling the shaping down keeps it a gentle
         # guidance signal rather than something that dominates the win/loss reward.
-        self.shaping_scale = 0.01
+        self.shaping_scale = 0.01 *(1/self.N)
 
         # Board constants used by the transition logic. Positions are encoded as:
         # 0 = not entered, 1..14 = board path, 15 = scored.
@@ -96,8 +96,9 @@ class RoyalGameOfUr(gym.Env):
         Gets legal actions for current player
         """
         pieces = self.player1_loc if self.current_player == 1 else self.player2_loc
+        enemy_pieces= self.player2_loc if self.current_player == 1 else self.player1_loc
         legal_actions = []
-
+        shared_rosette= next(iter(set(self.public_cells) & set(self.rosettes)))
         for start in sorted(set(pieces)):
             if self.roll == 0 or start == self.scored_cell:
                 continue
@@ -108,6 +109,8 @@ class RoyalGameOfUr(gym.Env):
 
             # The only pieces that can share the same cells are the ones in the home or score cell; otherwise the action is illegal.
             if destination not in (self.home_cell, self.scored_cell) and destination in pieces:
+                continue
+            if destination==shared_rosette and shared_rosette in enemy_pieces: 
                 continue
 
             legal_actions.append((start, destination))
@@ -152,18 +155,25 @@ class RoyalGameOfUr(gym.Env):
         legal_actions = self.get_legal_moves()
         return legal_actions[int(self.np_random.integers(len(legal_actions)))]
 
-    def move_p2(self):
+    def move_p2(self,opponent_policy=None):
         self.current_player = 2
 
         while self.current_player == 2:
             self.roll = self.roll_dice()
-            p2_action = self.sample_legal_action()
+            if opponent_policy is not None:
+                p2_state = np.array(sorted(self.player2_loc) + sorted(self.player1_loc) + [self.roll],dtype=np.int64)
+                legal_moves = self.get_legal_moves()
+                p2_action = opponent_policy(p2_state,legal_moves)
+
+            
+            else:
+                p2_action = self.sample_legal_action()
             self.update_board(p2_action)
 
             if self.check_win():
                 return True
 
-            if not self.last_landed_position in self.rosettes:
+            if not self.is_on_rosette():
                 self.current_player = 1
 
         return False
@@ -183,7 +193,7 @@ class RoyalGameOfUr(gym.Env):
         """
         return float(sum(self.player1_loc) - sum(self.player2_loc))
 
-    def step(self, action):
+    def step(self, action,opponent_policy=None):
         self.current_player = 1
         action = self.normalize_action(action)
         legal_actions = self.get_legal_moves()
@@ -204,7 +214,7 @@ class RoyalGameOfUr(gym.Env):
             if self.is_on_rosette():
                 self.roll = self.roll_dice()
             else:
-                p2_won = self.move_p2()
+                p2_won = self.move_p2(opponent_policy)
                 if p2_won:
                     terminated = True
                     reward = -1
@@ -217,7 +227,7 @@ class RoyalGameOfUr(gym.Env):
         # Add the shaping term gamma*Phi(s') - Phi(s) (gamma = 1). On terminal
         # transitions Phi(s') is taken as 0 by convention, which keeps the shaped
         # return's optimal policy identical to the unshaped one.
-        phi_after = 0.0 if terminated else self.potential()
+        phi_after = phi_before if terminated else self.potential()
         reward = reward + self.shaping_scale * (phi_after - phi_before)
 
         info = {"legal_actions": [] if terminated else self.get_legal_moves()}
