@@ -63,8 +63,9 @@ flat action index `start * 16 + dest`, and track the Q-value of one fixed state
   snapshot joins the pool of opponents sampled at the start of each episode, and
   a 200-match evaluation against the benchmark is logged.
 - **Artifacts** — `final_policy.pt` (end of training) and `old_net.pt`
-  (episode-1000 benchmark). Both are checked in and `N = 7`, so they only load
-  into a net built for that piece count.
+  (episode-1000 benchmark). Both are gitignored (`*.pt`), so a fresh clone has
+  to train them first. They are built for `N = 7` and only load into a net with
+  that piece count.
 
 `DQN_network.py` refuses to train without a GPU (it sets `num_episodes = 0` and
 prints a warning) — edit that branch if you want to run it on CPU.
@@ -99,7 +100,7 @@ uv run python eval_optimal.py  # vs the solved game (needs finkel.rgu, see below
 legal moves, not the move itself.
 
 ## Evaluating a trained policy
-vv
+
 Training only ever measured the agent against itself, which cannot say how
 strong it is in absolute terms. Three scripts answer that, in increasing order
 of cost and rigour.
@@ -118,17 +119,17 @@ nets, resets the env and opens a pyplot window at import time). It provides
 sample, because player 1 moves first and the env is not symmetric, and win rates
 carry a **Wilson score interval**.
 
-Results for the checked-in `final_policy.pt`, 2000 games per opponent:
+Results for the current `final_policy.pt`, 2000 games per opponent:
 
 | Opponent | Win rate | 95% CI |
 | --- | --- | --- |
-| random | 0.993 | [0.988, 0.995] |
-| heuristic (score > capture > rosette > advance) | 0.791 | [0.773, 0.808] |
-| `old_net.pt` (episode-1000 snapshot) | 0.731 | [0.711, 0.749] |
+| random | 0.999 | [0.996, 1.000] |
+| heuristic (score > capture > rosette > advance) | 0.960 | [0.950, 0.968] |
+| `old_net.pt` (episode-1000 snapshot) | 0.982 | [0.975, 0.987] |
 
-The heuristic itself beats random 0.933 of the time, so the 0.791 is a real
-margin over a non-trivial opponent, and beating its own earlier snapshot 0.731
-confirms the second half of training was not wasted.
+The heuristic itself beats random 0.933 of the time, so 0.960 against it is a
+real margin over a non-trivial opponent, and beating its own earlier snapshot
+0.982 of the time confirms the second half of training was not wasted.
 
 ### Against perfect play
 
@@ -165,36 +166,38 @@ Reported by [eval_optimal.py](eval_optimal.py), 2000 games / 600 analysis games:
 
 | Metric | Value |
 | --- | --- |
-| Win rate vs. optimal play | 0.015 [0.010, 0.021] |
+| Win rate vs. optimal play | 0.411 [0.390, 0.433] |
 | Random vs. optimal play (floor) | 0.000 [0.000, 0.010] |
-| Optimal-move agreement | 0.578 |
-| Mean regret per decision | 0.0055 win probability |
-| Blunder rate (costing > 0.05) | 0.016 |
+| Optimal-move agreement | 0.821 |
+| Mean regret per decision | 0.0010 win probability |
+| 90th percentile regret | 0.0028 win probability |
+| Blunder rate (costing > 0.05) | < 0.001 |
 
 Perfect play wins 0.5154 from the start position, which matches the published
 first-player advantage and is itself a check that the bridge is correct.
 
-**Read the second half of that table, not the first.** A 2% win rate against a
-solved opponent is close to uninformative — Ur is a dice game and one match is
-roughly one bit. The move-quality metrics score *every* decision against the
-table's win probabilities, so 600 games yield ~53k scored decisions and much
-tighter conclusions. Mean regret of 0.0055 says the policy is usually close to
-optimal even when it does not pick the best move, and the median regret is 0;
-agreement of 0.578 with a 0.016 blunder rate says the remaining loss is
-concentrated in a few bad decisions rather than spread thinly.
+**The win rate is close to the ceiling.** Since perfect play only wins ~52%
+going first, two optimal players split games roughly 50/50 — so 0.411 against
+a solved opponent (0.418 as P1, 0.404 as P2) is within ~9 points of the best
+achievable result, while random play never wins at all. Still, one match is
+roughly one bit of information, so the move-quality metrics are the sharper
+measure: they score *every* decision against the table's win probabilities,
+and 600 games yield ~54k scored decisions. The policy picks an optimal move
+0.821 of the time, the median regret is 0, and 90% of decisions cost less than
+0.003 win probability. Blunders costing more than 0.05 are rare enough to round
+to zero at three decimals.
 
-Regret is also broken down by game phase, and it roughly doubles from opening
-(0.0047) to endgame (0.0095) — the endgame is where this policy is weakest,
-which is where to look next.
+Regret is also broken down by game phase: opening 0.0007, midgame 0.0009,
+endgame 0.0017. It roughly doubles in the endgame, which is still where the
+policy is weakest.
 
-`--show-blunders` dumps the worst positions, and they share a shape: almost all
-of them are races where the opponent has one piece left on the board, around
-cells 10-11, and the policy introduces a new piece from home (`(0, 3)`) or
-shuffles a back piece instead of moving the piece on cell 8 to 11 to block or
-contest. The single worst case costs 0.199 win probability by playing `(8, 11)`
-when `(12, 15)` would have borne a piece off. In short: the policy under-values
-finishing and over-values developing new pieces once the race is decided — a
-concrete, fixable weakness that a win rate alone would never have surfaced.
+`--show-blunders` dumps the worst positions, and they share a shape: nearly all
+are late races with one or two pieces left per side, mostly on a roll of 1. The
+policy advances a back piece (typically `(8, 9)`) when it should push a front
+piece onto the rosette at 14 (`(12, 13)` / `(13, 14)`) or bear it off, giving
+away the extra roll. The single worst case costs 0.088 win probability. In short: the policy under-values the
+end-of-track rosette tempo in decided races — a narrow, concrete weakness that
+a win rate alone would never have surfaced.
 
 ## Sweeps and figures
 
