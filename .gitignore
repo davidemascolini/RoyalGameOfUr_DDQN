@@ -8,3 +8,7 @@ wheels/
 
 # Virtual environments
 .venv
+
+# Solved-game lookup tables (finkel.rgu is ~827MB, downloaded from
+# https://huggingface.co/sothatsit/RoyalUrModels -- see ur_bridge.py)
+*.rgu
